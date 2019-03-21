@@ -131,9 +131,14 @@ int* flattenMatrix(int** M, int n, int m, int reverse)
 // Multiplies matrices A and B together
 void multiply(int* A, int* B, int n, int m, int k)
 {
-	#pragma omp parallel for shared(C) collapse(3)
+	#pragma omp parallel for shared(C)
 	for (int i = 0; i < n; i++)
 		for (int j = 0; j < m; j++)
+		{
+			int total = 0;
 			for (int l = 0; l < k; l++)
-				C[i][j] += A[i*k+l] * B[l+j*k];
+				total += A[i*k+l] * B[l+j*k];
+			#pragma omp atomic write
+			C[i][j] = total;
+		}
 }
