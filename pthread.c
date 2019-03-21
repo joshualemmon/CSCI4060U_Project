@@ -51,6 +51,8 @@ struct multiply_args
 	int n;
 	int m;
 	int k;
+	int chunk;
+	int i;
 };
 
 int main(int argc, char* argv[])
@@ -176,9 +178,6 @@ int main(int argc, char* argv[])
 			exit(-1);
 		}
 	}
-	for (int i = 0; i < n1*m1; i++)
-		printf("%d ", flat_A[i]);
-	printf("\n");
 	pthread_mutex_destroy(&mutex_flat_A);
 	// Generate random matrix B of dimensions n2xm2
 	struct gen_matrix_args gen_b_args[num_threads];
@@ -261,12 +260,39 @@ int main(int argc, char* argv[])
 			exit(-1);
 		}
 	}
-	for (int i = 0; i < n2*m2; i++)
-		printf("%d ", flat_B[i]);
-	printf("\n");
 	pthread_mutex_destroy(&mutex_flat_B);
 	// Multiply flattened A and flattened B, putting results in global variable matrix C
-	multiply((void*)1);
+	struct multiply_args m_args[num_threads];
+	chunk = n1/num_threads;
+	for (int i = 0; i < num_threads; i++)
+	{
+		m_args[i].n = n1;
+		m_args[i].m = m2;
+		m_args[i].k = m1;
+		m_args[i].chunk = i*chunk + chunk;
+		m_args[i].i = i*chunk;
+
+		if(m_args[i].chunk + chunk > n1-1)
+			m_args[i].chunk = n1;
+
+		int e = pthread_create(&threads[i], &attr, multiply, (void*)&m_args[i]);
+		if(e)
+		{
+			printf("Error creating multiplication threads: %d\n", e);
+			exit(-1);
+		}
+	}
+
+	for (int i = 0; i < num_threads; i++)
+	{
+		int e = pthread_join(threads[i], NULL);
+
+		if(e)
+		{
+			printf("Error joining multiplication threads: %d\n", e);
+			exit(-1);
+		}
+	}
 
 	if (output)
 	{
@@ -345,11 +371,17 @@ void* flattenMatrix(void* args)
 // Multiplies matrices A and B together
 void* multiply(void* args)
 {
-	int n = 0;
-	int m = 0;
-	int k = 0;
-	for (int i = 0; i < n; i++)
-		for (int j = 0; j < m; j++)
-			for (int l = 0; l < k; l++)
-				C[i][j] += flat_A[i*k+l] * flat_B[l+j*k];
+	struct multiply_args* arg;
+	arg = (struct multiply_args*) args;
+	for (int i = 0; i < arg->n; i++)
+		for (int j = 0; j < arg->m; j++)
+		{	
+			int total = 0;
+			for (int l = 0; l < arg->k; l++)
+				total += flat_A[i*arg->k+l] * flat_B[l+j*arg->k];
+			pthread_mutex_lock(&mutex_C);
+			C[i][j] = total;
+			pthread_mutex_unlock(&mutex_C);
+
+		}
 }
