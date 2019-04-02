@@ -3,6 +3,7 @@
 #include <time.h>
 #include <omp.h>
 
+
 int** C;
 
 int* generateMatrix(int n, int m, int reverse);
@@ -41,35 +42,35 @@ int main(int argc, char* argv[])
 	// Initialize random seed
 	srand(time(NULL));
 	// Generate random flat matrix A of dimension mxn
-	int* flatA = generateMatrix(m, k, 0);
+	int* A = generateMatrix(m, k, 0);
 	if(output)
 	{
 		printf("Matrix A\n\n");
 		printf("Flat:\n");
 		for(int i = 0; i < n*k; i++)
-			printf("%d ", flatA[i]);
+			printf("%d ", A[i]);
 		printf("\nUnflattened:\n");
 		for(int i = 0; i < m; i++)
 		{
 			for (int j = 0; j < k; j++)
-				printf("%d ", flatA[i * k + j]);
+				printf("%d ", A[i * k + j]);
 			printf("\n");
 		}
 		printf("\n--------\n");
 	}
 	// Generate random matrix B of dimensions kxk
-	int* flatB = generateMatrix(k, n, 1);
+	int* B = generateMatrix(k, n, 1);
 	if (output)
 	{
 		printf("\nMatrix B\n\n");
 		printf("Flat:\n");
 		for(int i = 0; i < n*k; i++)
-			printf("%d ", flatB[i]);
+			printf("%d ", B[i]);
 		printf("\nUnflattened:\n");
 		for(int i = 0; i < k; i++)
 		{
 			for (int j = 0; j < n; j++)
-				printf("%d ", flatB[i +  j*n]);
+				printf("%d ", B[i +  j*n]);
 			printf("\n");
 		}
 		printf("\n--------\n");
@@ -77,7 +78,7 @@ int main(int argc, char* argv[])
 	// Flatten matrix B into 1d array of size k*n
 
 	// Multiply flattened A and flattened B, putting results in global variable matrix C
-	multiply(flatA, flatB, m, k, n);
+	multiply(A, B, m, k, n);
 	if (output)
 	{
 		printf("\nMatrix C\n\n");

@@ -3,8 +3,8 @@
 #include <time.h>
 #include <pthread.h>
 
-int* flat_A;
-int* flat_B;
+int* A;
+int* B;
 int** C;
 
 void* generateMatrix(void* flatten_arg);
@@ -84,21 +84,21 @@ int main(int argc, char* argv[])
 	// Initialize A
 
 	// Flatten matrix A into a 1d array of size m*k
-	struct gen_matrix_args flat_a_args[num_threads];
-	// Initialize flat_A
-	flat_A = malloc(m*k*sizeof(int));
+	struct gen_matrix_args A_args[num_threads];
+	// Initialize A
+	A = malloc(m*k*sizeof(int));
 	for (int i = 0; i < num_threads; i++)
 	{
-		flat_a_args[i].i = i*chunk;
-		flat_a_args[i].chunk = i*chunk + chunk;
-		flat_a_args[i].n = m;
-		flat_a_args[i].m = k;
-		flat_a_args[i].reverse = 0;
+		A_args[i].i = i*chunk;
+		A_args[i].chunk = i*chunk + chunk;
+		A_args[i].n = m;
+		A_args[i].m = k;
+		A_args[i].reverse = 0;
 		// Add remainder of iterations if there are leftovers
-		if(flat_a_args[i].chunk + chunk > m-1)
-			flat_a_args[i].chunk = m;
+		if(A_args[i].chunk + chunk > m-1)
+			A_args[i].chunk = m;
 
-		int e = pthread_create(&a_threads[i], &attr, generateMatrix, (void*)&flat_a_args[i]);
+		int e = pthread_create(&a_threads[i], &attr, generateMatrix, (void*)&A_args[i]);
 
 		if(e)
 		{
@@ -107,22 +107,22 @@ int main(int argc, char* argv[])
 		}
 	}
 	// Flatten matrix B into 1d array of size k*n
-	struct gen_matrix_args flat_b_args[num_threads];
-	// Initialize flat_B
-	flat_B = malloc(k*n*sizeof(int));
+	struct gen_matrix_args B_args[num_threads];
+	// Initialize B
+	B = malloc(k*n*sizeof(int));
 	for (int i = 0; i < num_threads; i++)
 	{
-		flat_b_args[i].i = i*chunk;
-		flat_b_args[i].chunk = i*chunk + chunk;
-		flat_b_args[i].n = k;
-		flat_b_args[i].m = n;
-		flat_b_args[i].reverse = 1;
-		flat_b_args[i].tid = i;
+		B_args[i].i = i*chunk;
+		B_args[i].chunk = i*chunk + chunk;
+		B_args[i].n = k;
+		B_args[i].m = n;
+		B_args[i].reverse = 1;
+		B_args[i].tid = i;
 		// Add remainder of iterations if there are leftovers
-		if(flat_b_args[i].chunk + chunk > k-1)
-			flat_b_args[i].chunk = k;
+		if(B_args[i].chunk + chunk > k-1)
+			B_args[i].chunk = k;
 
-		int e = pthread_create(&b_threads[i], &attr, generateMatrix,(void*)&flat_b_args[i]);
+		int e = pthread_create(&b_threads[i], &attr, generateMatrix,(void*)&B_args[i]);
 
 		if(e)
 		{
@@ -151,25 +151,25 @@ int main(int argc, char* argv[])
 		printf("Matrix A\n\n");
 		printf("Flat:\n");
 		for(int i = 0; i < n*k; i++)
-			printf("%d ", flat_A[i]);
+			printf("%d ", A[i]);
 		printf("\nUnflattened:\n");
 		for(int i = 0; i < m; i++)
 		{
 			for (int j = 0; j < k; j++)
-				printf("%d ", flat_A[i*k + j]);
+				printf("%d ", A[i*k + j]);
 			printf("\n");
 		}
 		printf("--------\n");
 		printf("Matrix B\n\n");
 		printf("Flat:\n");
 		for(int i = 0; i < n*k; i++)
-			printf("%d ", flat_B[i]);
+			printf("%d ", B[i]);
 		printf("\nUnflattened:\n");
 
 		for(int i = 0; i < k; i++)
 		{
 			for (int j = 0; j < n; j++)
-				printf("%d ", flat_B[i + j*n]);
+				printf("%d ", B[i + j*n]);
 			printf("\n");
 		}
 		printf("--------\n");
@@ -227,9 +227,9 @@ void* generateMatrix(void* args)
 	for (int i = arg->i; i < arg->chunk; i++)
 		for (int j = 0; j < arg->m; j++)
 			if (arg->reverse)
-				flat_B[j*arg->n + i] = rand() % 5;
+				B[j*arg->n + i] = rand() % 5;
 			else
-				flat_A[i*arg->m + j] = rand() % 5; 
+				A[i*arg->m + j] = rand() % 5; 
 }
 
 // Multiplies matrices A and B together
@@ -242,7 +242,7 @@ void* multiply(void* args)
 		{	
 			int total = 0;
 			for (int l = 0; l < arg->k; l++)
-				total += flat_A[i*arg->k+l] * flat_B[l+j*arg->k];
+				total += A[i*arg->k+l] * B[l+j*arg->k];
 			//pthread_mutex_lock(&mutex_C);
 			C[i][j] = total;
 			//pthread_mutex_unlock(&mutex_C);
