@@ -3,20 +3,11 @@
 #include <time.h>
 #include <pthread.h>
 
-int** A;
-pthread_mutex_t mutex_A;
 int* flat_A;
-pthread_mutex_t mutex_flat_A;
-int** B;
-pthread_mutex_t mutex_B;
 int* flat_B;
-pthread_mutex_t mutex_flat_B;
 int** C;
-pthread_mutex_t mutex_C;
 
-//void* initializeC(void* initArg);
-void* generateMatrix(void* gen_arg);
-void* flattenMatrix(void* flatten_arg);
+void* generateMatrix(void* flatten_arg);
 void* multiply(void* multiply_arg);
 
 // struct initArgs
@@ -27,16 +18,6 @@ void* multiply(void* multiply_arg);
 // };
 
 struct gen_matrix_args
-{
-	char matrix;
-	int i;
-	int chunk;
-	int n;
-	int m;
-	int tid;
-};
-
-struct flatten_matrix_args
 {
 	int i;
 	int n;
@@ -58,7 +39,7 @@ struct multiply_args
 int main(int argc, char* argv[])
 {
 	// Ensure all arguments are entered
-	if (argc < 7)
+	if (argc < 6)
 	{
 		printf("Error: Missing arguments.\n");
 		exit(0);
@@ -71,96 +52,53 @@ int main(int argc, char* argv[])
 		printf("Error: Expect num_threads > 0\n");
 		exit(0);
 	}
-	pthread_t threads[num_threads];
+	pthread_t a_threads[num_threads];
+	pthread_t b_threads[num_threads];
+	pthread_t c_threads[num_threads];
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-	pthread_mutex_init(&mutex_A, NULL);
-	pthread_mutex_init(&mutex_B, NULL);
-	pthread_mutex_init(&mutex_C, NULL);
-	pthread_mutex_init(&mutex_flat_A, NULL);
-	pthread_mutex_init(&mutex_flat_B, NULL);
 	// Convert dimensions to ints
-	int n1 = atoi(argv[3]);
-	int m1 = atoi(argv[4]);
-	int n2 = atoi(argv[5]);
-	int m2 = atoi(argv[6]);
-	// Ensure m1 and n2 are equal
-	if(m1 != n2)
+	int m = atoi(argv[3]);
+	int k = atoi(argv[4]);
+	int n = atoi(argv[5]);
+	if (num_threads > m)
 	{
-		printf("Error: Expect m1 and n2 to be equal.\n");
+		printf("Error: Too many threads for size of matrix A.\n");
+		exit(0);
+	}
+	if (num_threads > k)
+	{
+		printf("Error: Too many threads for size of matrix B.\n");
 		exit(0);
 	}
 	// Initialize memory space of C
-	C = malloc(n1*sizeof(int*));
-	for (int i = 0; i < n1; i++)
-		C[i] = malloc(m2*sizeof(int));
+	C = malloc(m*sizeof(int*));
+	for (int i = 0; i < m; i++)
+		C[i] = malloc(n*sizeof(int));
 	// Initialize random seed
 	srand(time(NULL));
 	// Create array for generating matrix A
-	struct gen_matrix_args gen_a_args[num_threads];
 	// Find size of chunk to be given to each thread
-	int chunk = n1/num_threads;
-	// Initialize A[]
-	A = malloc(n1*sizeof(int*));
-	// Generate random matrix A of dimensions n1xm1
-	for (int i = 0; i < num_threads; i++)
-	{
-		gen_a_args[i].matrix = 'A';
-		gen_a_args[i].i = i*chunk;
-		gen_a_args[i].chunk = i*chunk + chunk;
-		gen_a_args[i].n = n1;
-		gen_a_args[i].m = m1;
-		gen_a_args[i].tid = i;
-		// Add remainder of iterations if there are leftovers
-		if(gen_a_args[i].chunk + chunk > n1-1)
-			gen_a_args[i].chunk = n1;
-		
-		int e = pthread_create(&threads[i], &attr, generateMatrix, (void*)&gen_a_args[i]);
+	int chunk = m/num_threads;
+	// Initialize A
 
-		if(e)
-		{
-			printf("Error creating matrix A generation threads: %d\n", e);
-			exit(-1);
-		}
-	}
-	for (int i = 0; i < num_threads; i++)
-	{
-		int e = pthread_join(threads[i], NULL);
-		if (e)
-		{
-			printf("Error joining matrix A generation threads: %d\n", e);
-			exit(-1);
-		}
-	}
-	if(output)
-	{
-		printf("Matrix A\n\n");
-		for(int i = 0; i < n1; i++)
-		{
-			for (int j = 0; j < m1; j++)
-				printf("%d ", A[i][j]);
-			printf("\n");
-		}
-		printf("--------\n");
-	}
-	pthread_mutex_destroy(&mutex_A);
-	// Flatten matrix A into a 1d array of size n1*m1
-	struct flatten_matrix_args flat_a_args[num_threads];
+	// Flatten matrix A into a 1d array of size m*k
+	struct gen_matrix_args flat_a_args[num_threads];
 	// Initialize flat_A
-	flat_A = malloc(n1*m1*sizeof(int));
+	flat_A = malloc(m*k*sizeof(int));
 	for (int i = 0; i < num_threads; i++)
 	{
 		flat_a_args[i].i = i*chunk;
 		flat_a_args[i].chunk = i*chunk + chunk;
-		flat_a_args[i].n = n1;
-		flat_a_args[i].m = m1;
+		flat_a_args[i].n = m;
+		flat_a_args[i].m = k;
 		flat_a_args[i].reverse = 0;
 		// Add remainder of iterations if there are leftovers
-		if(flat_a_args[i].chunk + chunk > n1-1)
-			flat_a_args[i].chunk = n1;
+		if(flat_a_args[i].chunk + chunk > m-1)
+			flat_a_args[i].chunk = m;
 
-		int e = pthread_create(&threads[i], &attr, flattenMatrix, (void*)&flat_a_args[i]);
+		int e = pthread_create(&a_threads[i], &attr, generateMatrix, (void*)&flat_a_args[i]);
 
 		if(e)
 		{
@@ -168,81 +106,23 @@ int main(int argc, char* argv[])
 			exit(-1);
 		}
 	}
-	for (int i = 0; i < num_threads; i++)
-	{
-		int e = pthread_join(threads[i], NULL);
-
-		if(e)
-		{
-			printf("Error joining matrix A flatten threads: %d\n", e);
-			exit(-1);
-		}
-	}
-	pthread_mutex_destroy(&mutex_flat_A);
-	// Generate random matrix B of dimensions n2xm2
-	struct gen_matrix_args gen_b_args[num_threads];
-	// Find size of chunk to be given to each thread
-	chunk = n2/num_threads;
-	// Initialize B[]
-	B = malloc(n2*sizeof(int*));
-	for (int i = 0; i < num_threads; i++)
-	{
-		gen_b_args[i].matrix = 'B';
-		gen_b_args[i].i = i*chunk;
-		gen_b_args[i].chunk = i*chunk + chunk;
-		gen_b_args[i].n = n2;
-		gen_b_args[i].m = m2;
-		gen_b_args[i].tid = i;
-		// Add remainder of iterations if there are leftovers
-		if(gen_b_args[i].chunk + chunk > n2-1)
-			gen_b_args[i].chunk = n2;
-		
-		int e = pthread_create(&threads[i], &attr, generateMatrix, (void*)&gen_b_args[i]);
-
-		if(e)
-		{
-			printf("Error creating matrix B generation threads: %d\n", e);
-			exit(-1);
-		}
-	}
-	for (int i = 0; i < num_threads; i++)
-	{
-		int e = pthread_join(threads[i], NULL);
-		if (e)
-		{
-			printf("Error joining matrix B generation threads: %d\n", e);
-			exit(-1);
-		}
-	}
-	if(output)
-	{
-		printf("Matrix B\n\n");
-		for(int i = 0; i < n2; i++)
-		{
-			for (int j = 0; j < m2; j++)
-				printf("%d ", B[i][j]);
-			printf("\n");
-		}
-		printf("--------\n");
-	}
-	pthread_mutex_destroy(&mutex_B);
-	// Flatten matrix B into 1d array of size n2*m2
-	struct flatten_matrix_args flat_b_args[num_threads];
+	// Flatten matrix B into 1d array of size k*n
+	struct gen_matrix_args flat_b_args[num_threads];
 	// Initialize flat_B
-	flat_B = malloc(n2*m2*sizeof(int));
+	flat_B = malloc(k*n*sizeof(int));
 	for (int i = 0; i < num_threads; i++)
 	{
 		flat_b_args[i].i = i*chunk;
 		flat_b_args[i].chunk = i*chunk + chunk;
-		flat_b_args[i].n = n2;
-		flat_b_args[i].m = m2;
+		flat_b_args[i].n = k;
+		flat_b_args[i].m = n;
 		flat_b_args[i].reverse = 1;
 		flat_b_args[i].tid = i;
 		// Add remainder of iterations if there are leftovers
-		if(flat_b_args[i].chunk + chunk > n2-1)
-			flat_b_args[i].chunk = n2;
+		if(flat_b_args[i].chunk + chunk > k-1)
+			flat_b_args[i].chunk = k;
 
-		int e = pthread_create(&threads[i], &attr, flattenMatrix,(void*)&flat_b_args[i]);
+		int e = pthread_create(&b_threads[i], &attr, generateMatrix,(void*)&flat_b_args[i]);
 
 		if(e)
 		{
@@ -252,30 +132,63 @@ int main(int argc, char* argv[])
 	}
 	for (int i = 0; i < num_threads; i++)
 	{
-		int e = pthread_join(threads[i], NULL);
+		int ea = pthread_join(a_threads[i], NULL);
+		int eb = pthread_join(b_threads[i], NULL);
 
-		if(e)
+		if(ea)
 		{
-			printf("Error joining matrix B flatten threads: %d\n", e);
+			printf("Error joining matrix A flatten threads: %d\n", ea);
+			exit(-1);
+		}
+		if(eb)
+		{
+			printf("Error joining matrix B flatten threads: %d\n", eb);
 			exit(-1);
 		}
 	}
-	pthread_mutex_destroy(&mutex_flat_B);
+	if(output)
+	{
+		printf("Matrix A\n\n");
+		printf("Flat:\n");
+		for(int i = 0; i < n*k; i++)
+			printf("%d ", flat_A[i]);
+		printf("\nUnflattened:\n");
+		for(int i = 0; i < m; i++)
+		{
+			for (int j = 0; j < k; j++)
+				printf("%d ", flat_A[i*k + j]);
+			printf("\n");
+		}
+		printf("--------\n");
+		printf("Matrix B\n\n");
+		printf("Flat:\n");
+		for(int i = 0; i < n*k; i++)
+			printf("%d ", flat_B[i]);
+		printf("\nUnflattened:\n");
+
+		for(int i = 0; i < k; i++)
+		{
+			for (int j = 0; j < n; j++)
+				printf("%d ", flat_B[i + j*n]);
+			printf("\n");
+		}
+		printf("--------\n");
+	}
 	// Multiply flattened A and flattened B, putting results in global variable matrix C
 	struct multiply_args m_args[num_threads];
-	chunk = n1/num_threads;
+	chunk = m/num_threads;
 	for (int i = 0; i < num_threads; i++)
 	{
-		m_args[i].n = n1;
-		m_args[i].m = m2;
-		m_args[i].k = m1;
+		m_args[i].n = m;
+		m_args[i].m = n;
+		m_args[i].k = k;
 		m_args[i].chunk = i*chunk + chunk;
 		m_args[i].i = i*chunk;
 
-		if(m_args[i].chunk + chunk > n1-1)
-			m_args[i].chunk = n1;
+		if(m_args[i].chunk + chunk > m-1)
+			m_args[i].chunk = m;
 
-		int e = pthread_create(&threads[i], &attr, multiply, (void*)&m_args[i]);
+		int e = pthread_create(&c_threads[i], &attr, multiply, (void*)&m_args[i]);
 		if(e)
 		{
 			printf("Error creating multiplication threads: %d\n", e);
@@ -285,7 +198,7 @@ int main(int argc, char* argv[])
 
 	for (int i = 0; i < num_threads; i++)
 	{
-		int e = pthread_join(threads[i], NULL);
+		int e = pthread_join(c_threads[i], NULL);
 
 		if(e)
 		{
@@ -293,79 +206,30 @@ int main(int argc, char* argv[])
 			exit(-1);
 		}
 	}
-
 	if (output)
 	{
 		printf("\nMatrix C\n\n");
-		for(int i = 0; i < n1; i++)
+		for(int i = 0; i < m; i++)
 		{
-			for (int j = 0; j < m2; j++)
+			for (int j = 0; j < n; j++)
 				printf("%d ", C[i][j]);
 			printf("\n");
 		}
 	}
 }
 
-// Generate a random matrix of dimensions nxm
+// Flattens a matrix M. If reverse is true then flattened
+// array will be in column first format.
 void* generateMatrix(void* args)
 {
 	struct gen_matrix_args* arg;
 	arg = (struct gen_matrix_args*) args;
 	for (int i = arg->i; i < arg->chunk; i++)
-	{
-		if(arg->matrix == 'A')
-		{
-			pthread_mutex_lock(&mutex_A);
-			A[i] = malloc(arg->m*sizeof(int));
-			pthread_mutex_unlock(&mutex_A);
-		}
-		else if(arg->matrix == 'B')
-		{
-			pthread_mutex_lock(&mutex_B);
-			B[i] = malloc(arg->m*sizeof(int));
-			pthread_mutex_unlock(&mutex_B);
-		}
-
 		for (int j = 0; j < arg->m; j++)
-		{
-			if(arg->matrix == 'A')
-			{
-				pthread_mutex_lock(&mutex_A);
-				A[i][j] = rand() % 5;
-				pthread_mutex_unlock(&mutex_A);
-			}
-			if(arg->matrix == 'B')
-			{
-				pthread_mutex_lock(&mutex_B);
-				B[i][j] = rand() % 5;
-				pthread_mutex_unlock(&mutex_B);
-			}
-		}
-	}
-}
-
-// Flattens a matrix M. If reverse is true then flattened
-// array will be in column first format.
-void* flattenMatrix(void* args)
-{
-	struct flatten_matrix_args* arg;
-	arg = (struct flatten_matrix_args*) args;
-	for (int i = arg->i; i < arg->chunk; i++)
-		for (int j = 0; j < arg->m; j++)
-		{
 			if (arg->reverse)
-			{
-				pthread_mutex_lock(&mutex_flat_B);
-				flat_B[j*arg->n + i] = B[i][j];
-				pthread_mutex_unlock(&mutex_flat_B);
-			}
+				flat_B[j*arg->n + i] = rand() % 5;
 			else
-			{
-				pthread_mutex_lock(&mutex_flat_A);
-				flat_A[i*arg->m + j] = A[i][j]; 
-				pthread_mutex_unlock(&mutex_flat_A);
-			}
-		}
+				flat_A[i*arg->m + j] = rand() % 5; 
 }
 
 // Multiplies matrices A and B together
@@ -379,9 +243,9 @@ void* multiply(void* args)
 			int total = 0;
 			for (int l = 0; l < arg->k; l++)
 				total += flat_A[i*arg->k+l] * flat_B[l+j*arg->k];
-			pthread_mutex_lock(&mutex_C);
+			//pthread_mutex_lock(&mutex_C);
 			C[i][j] = total;
-			pthread_mutex_unlock(&mutex_C);
+			//pthread_mutex_unlock(&mutex_C);
 
 		}
 }
