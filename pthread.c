@@ -21,10 +21,9 @@ struct gen_matrix_args
 {
 	int i;
 	int n;
-	int chunk;
+	int i_max;
 	int m;
 	int reverse;
-	int tid;
 };
 
 struct multiply_args
@@ -32,7 +31,7 @@ struct multiply_args
 	int n;
 	int m;
 	int k;
-	int chunk;
+	int i_max;
 	int i;
 };
 
@@ -90,13 +89,13 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < num_threads; i++)
 	{
 		A_args[i].i = i*chunk;
-		A_args[i].chunk = i*chunk + chunk;
+		A_args[i].i_max = i*chunk + chunk;
 		A_args[i].n = m;
 		A_args[i].m = k;
 		A_args[i].reverse = 0;
 		// Add remainder of iterations if there are leftovers
-		if(A_args[i].chunk + chunk > m-1)
-			A_args[i].chunk = m;
+		if(A_args[i].i_max + chunk > m-1)
+			A_args[i].i_max = m;
 
 		int e = pthread_create(&a_threads[i], &attr, generateMatrix, (void*)&A_args[i]);
 
@@ -106,6 +105,17 @@ int main(int argc, char* argv[])
 			exit(-1);
 		}
 	}
+	for (int i = 0; i < num_threads; i++)
+	{
+		int ea = pthread_join(a_threads[i], NULL);
+
+		if(ea)
+		{
+			printf("Error joining matrix A flatten threads: %d\n", ea);
+			exit(-1);
+		}
+	}
+	chunk = k/num_threads;
 	// Generate random flat matrix B of size k*n
 	struct gen_matrix_args B_args[num_threads];
 	// Initialize B
@@ -113,14 +123,13 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < num_threads; i++)
 	{
 		B_args[i].i = i*chunk;
-		B_args[i].chunk = i*chunk + chunk;
+		B_args[i].i_max = i*chunk + chunk;
 		B_args[i].n = k;
 		B_args[i].m = n;
 		B_args[i].reverse = 1;
-		B_args[i].tid = i;
 		// Add remainder of iterations if there are leftovers
-		if(B_args[i].chunk + chunk > k-1)
-			B_args[i].chunk = k;
+		if(B_args[i].i_max + chunk > k-1)
+			B_args[i].i_max = k;
 
 		int e = pthread_create(&b_threads[i], &attr, generateMatrix,(void*)&B_args[i]);
 
@@ -132,14 +141,8 @@ int main(int argc, char* argv[])
 	}
 	for (int i = 0; i < num_threads; i++)
 	{
-		int ea = pthread_join(a_threads[i], NULL);
 		int eb = pthread_join(b_threads[i], NULL);
 
-		if(ea)
-		{
-			printf("Error joining matrix A flatten threads: %d\n", ea);
-			exit(-1);
-		}
 		if(eb)
 		{
 			printf("Error joining matrix B flatten threads: %d\n", eb);
@@ -182,11 +185,11 @@ int main(int argc, char* argv[])
 		m_args[i].n = m;
 		m_args[i].m = n;
 		m_args[i].k = k;
-		m_args[i].chunk = i*chunk + chunk;
+		m_args[i].i_max = i*chunk + chunk;
 		m_args[i].i = i*chunk;
 
-		if(m_args[i].chunk + chunk > m-1)
-			m_args[i].chunk = m;
+		if(m_args[i].i_max + chunk > m-1)
+			m_args[i].i_max = m;
 
 		int e = pthread_create(&c_threads[i], &attr, multiply, (void*)&m_args[i]);
 		if(e)
@@ -224,7 +227,7 @@ void* generateMatrix(void* args)
 {
 	struct gen_matrix_args* arg;
 	arg = (struct gen_matrix_args*) args;
-	for (int i = arg->i; i < arg->chunk; i++)
+	for (int i = arg->i; i < arg->i_max; i++)
 		for (int j = 0; j < arg->m; j++)
 			if (arg->reverse)
 				B[j*arg->n + i] = rand() % 5;
@@ -237,7 +240,7 @@ void* multiply(void* args)
 {
 	struct multiply_args* arg;
 	arg = (struct multiply_args*) args;
-	for (int i = 0; i < arg->n; i++)
+	for (int i = arg->i; i < arg->i_max; i++)
 		for (int j = 0; j < arg->m; j++)
 		{	
 			int total = 0;
