@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
 		C[i] = malloc(n*sizeof(int));
 	// Initialize random seed
 	srand(time(NULL));
-	// Generate random matrix A of dimensions mxk
+	// Generate random flat matrix A of dimensions mxk
 	int* A = generateMatrix(m, k, 0);
 	if(output)
 	{
@@ -43,8 +43,7 @@ int main(int argc, char* argv[])
 		}
 		printf("\n--------\n");
 	}
-	// Flatten matrix A into a 1d array of size m*k
-	// Generate random matrix B of dimensions kxn
+	// Generate random flat matrix B of dimensions kxn
 	int* B = generateMatrix(k, n, 1);
 	if (output)
 	{
@@ -61,9 +60,8 @@ int main(int argc, char* argv[])
 		}
 		printf("\n--------\n");
 	}
-	// Flatten matrix B into 1d array of size k*n
 
-	// Multiply flattened A and flattened B, putting results in global variable matrix C
+	// Multiply flat A and flat B, putting results in global variable matrix C
 	multiply(A, B, m, n, k);
 
 	if (output)
@@ -78,7 +76,7 @@ int main(int argc, char* argv[])
 	}
 }
 
-// Flattens a matrix M. If reverse is true then flattened
+// Generates a flat matrix M. If reverse is true then flattened
 // array will be in column first format.
 int* generateMatrix(int n, int m, int reverse)
 {

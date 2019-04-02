@@ -83,7 +83,7 @@ int main(int argc, char* argv[])
 	int chunk = m/num_threads;
 	// Initialize A
 
-	// Flatten matrix A into a 1d array of size m*k
+	// Generate random flat matrix A of size m*k
 	struct gen_matrix_args A_args[num_threads];
 	// Initialize A
 	A = malloc(m*k*sizeof(int));
@@ -106,7 +106,7 @@ int main(int argc, char* argv[])
 			exit(-1);
 		}
 	}
-	// Flatten matrix B into 1d array of size k*n
+	// Generate random flat matrix B of size k*n
 	struct gen_matrix_args B_args[num_threads];
 	// Initialize B
 	B = malloc(k*n*sizeof(int));
@@ -174,7 +174,7 @@ int main(int argc, char* argv[])
 		}
 		printf("--------\n");
 	}
-	// Multiply flattened A and flattened B, putting results in global variable matrix C
+	// Multiply A and B, putting results in global variable matrix C
 	struct multiply_args m_args[num_threads];
 	chunk = m/num_threads;
 	for (int i = 0; i < num_threads; i++)
@@ -218,7 +218,7 @@ int main(int argc, char* argv[])
 	}
 }
 
-// Flattens a matrix M. If reverse is true then flattened
+// Generates a flat matrix M. If reverse is true then flattened
 // array will be in column first format.
 void* generateMatrix(void* args)
 {
@@ -243,9 +243,7 @@ void* multiply(void* args)
 			int total = 0;
 			for (int l = 0; l < arg->k; l++)
 				total += A[i*arg->k+l] * B[l+j*arg->k];
-			//pthread_mutex_lock(&mutex_C);
 			C[i][j] = total;
-			//pthread_mutex_unlock(&mutex_C);
 
 		}
 }

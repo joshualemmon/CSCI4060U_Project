@@ -36,7 +36,6 @@ int main(int argc, char* argv[])
 	C = malloc(m*sizeof(int*));
 	#pragma omp parallel for shared(C)
 	for (int i = 0; i < m; i++)
-		#pragma omp atomic write
 		C[i] = malloc(k*sizeof(int));
 
 	// Initialize random seed
@@ -58,7 +57,7 @@ int main(int argc, char* argv[])
 		}
 		printf("\n--------\n");
 	}
-	// Generate random matrix B of dimensions kxk
+	// Generate random flat matrix B of dimensions kxk
 	int* B = generateMatrix(k, n, 1);
 	if (output)
 	{
@@ -75,9 +74,8 @@ int main(int argc, char* argv[])
 		}
 		printf("\n--------\n");
 	}
-	// Flatten matrix B into 1d array of size k*n
 
-	// Multiply flattened A and flattened B, putting results in global variable matrix C
+	// Multiply A and B, putting results in global variable matrix C
 	multiply(A, B, m, k, n);
 	if (output)
 	{
@@ -90,7 +88,6 @@ int main(int argc, char* argv[])
 		}
 	}
 }
-
 
 // Generates a flat matrix M. If reverse is true then flattened
 // array will be in column first format.
